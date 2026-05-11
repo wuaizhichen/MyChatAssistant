@@ -1,38 +1,71 @@
+/**
+ * 聊天相关 API
+ */
 import request from './request'
 
-export function getConversations() {
-  return request.get('/chat/conversations')
+const isDevelopment = process.env.NODE_ENV === 'development'
+const API_BASE = isDevelopment ? 'http://localhost:8000' : ''
+
+/**
+ * 获取会话列表
+ */
+export function getSessionList() {
+  return request.get('/session/list')
 }
 
-export function createConversation(data) {
-  return request.post('/chat/conversations', data)
+/**
+ * 创建新会话
+ * @param {Object} data - { title } 会话标题
+ */
+export function createSession(data) {
+  return request.post('/session/create', data)
 }
 
-export function deleteConversation(id) {
-  return request.delete(`/chat/conversations/${id}`)
+/**
+ * 删除会话
+ * @param {string} sessionId - 会话 ID
+ */
+export function deleteSession(sessionId) {
+  return request.delete(`/session/${sessionId}`)
 }
 
-export function updateConversation(id, data) {
-  return request.put(`/chat/conversations/${id}`, data)
+/**
+ * 获取会话消息列表
+ * @param {string} sessionId - 会话 ID
+ */
+export function getMessages(sessionId) {
+  return request.get(`/session/${sessionId}/messages`)
 }
 
-export function getMessages(conversationId) {
-  return request.get(`/chat/conversations/${conversationId}/messages`)
+/**
+ * 发送消息（普通模式）
+ * @param {string} sessionId - 会话 ID
+ * @param {Object} data - { content, model, temperature, maxTokens }
+ */
+export function sendMessage(sessionId, data) {
+  return request.post(`/chat/${sessionId}`, data)
 }
 
-export function sendMessage(conversationId, data) {
-  return request.post(`/chat/conversations/${conversationId}/messages`, data)
-}
-
-export function sendMessageStream(conversationId, data, onChunk, onDone, onError) {
+/**
+ * 发送消息（流式模式）
+ * @param {string} sessionId - 会话 ID
+ * @param {Object} data - 发送的数据 { content }
+ * @param {Function} onChunk - 接收到数据块的回调
+ * @param {Function} onDone - 完成时的回调
+ * @param {Function} onError - 错误时的回调
+ * @returns {AbortController} - 用于取消请求
+ */
+export function sendMessageStream(sessionId, data, onChunk, onDone, onError) {
   const token = localStorage.getItem('token')
   const controller = new AbortController()
 
-  fetch(`/api/chat/conversations/${conversationId}/messages/stream`, {
+  const url = `${API_BASE}/chat/${sessionId}/stream`
+
+  fetch(url, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${token}`
+      ...(token && { Authorization: `Bearer ${token}` })
     },
     body: JSON.stringify(data),
     signal: controller.signal
@@ -41,8 +74,9 @@ export function sendMessageStream(conversationId, data, onChunk, onDone, onError
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`)
       }
+
       const reader = response.body.getReader()
-      const decoder = new TextDecoder()
+      const decoder = new TextDecoder('utf-8')
 
       function read() {
         reader.read().then(({ done, value }) => {
@@ -50,23 +84,10 @@ export function sendMessageStream(conversationId, data, onChunk, onDone, onError
             onDone && onDone()
             return
           }
+
           const text = decoder.decode(value, { stream: true })
-          const lines = text.split('\n').filter(line => line.trim())
-          lines.forEach(line => {
-            if (line.startsWith('data: ')) {
-              const data = line.slice(6)
-              if (data === '[DONE]') {
-                onDone && onDone()
-                return
-              }
-              try {
-                const parsed = JSON.parse(data)
-                onChunk && onChunk(parsed)
-              } catch (e) {
-                onChunk && onChunk({ content: data })
-              }
-            }
-          })
+          onChunk && onChunk({ content: text })
+
           read()
         }).catch(err => {
           if (err.name !== 'AbortError') {

@@ -9,12 +9,16 @@
       <div class="message-body">
         <div class="message-role">{{ msg.role === 'user' ? '你' : 'AI 助手' }}</div>
         <div class="message-content">
-          <MarkdownRenderer v-if="msg.role === 'assistant'" :content="msg.content" />
-          <div v-else class="user-text">{{ msg.content }}</div>
+          <MarkdownRenderer
+            v-if="msg.role === 'assistant'"
+            :content="msg.content"
+            :isStreaming="isStreamingMessage(msg)"
+          />
+          <div v-else class="text-content">{{ msg.content }}</div>
         </div>
       </div>
     </div>
-    <div v-if="loading" class="message-item assistant">
+    <div v-if="loading && (!messages || messages.length === 0)" class="message-item assistant">
       <div class="message-avatar">
         <div class="avatar assistant">🤖</div>
       </div>
@@ -42,6 +46,17 @@ export default {
       default: () => []
     },
     loading: Boolean
+  },
+  computed: {
+    isStreaming() {
+      return this.loading
+    }
+  },
+  methods: {
+    isStreamingMessage(msg) {
+      const lastMsg = this.messages[this.messages.length - 1]
+      return this.loading && lastMsg && lastMsg.id === msg.id && lastMsg.role === 'assistant'
+    }
   }
 }
 </script>
@@ -63,9 +78,7 @@ export default {
   }
 
   &.user {
-    .message-body {
-      align-items: flex-end;
-    }
+    flex-direction: row-reverse;
 
     .user-text {
       background: #e8f0fe;
@@ -81,6 +94,10 @@ export default {
   &.assistant {
     .message-content {
       line-height: 1.7;
+
+      .text-content {
+        word-break: break-word;
+      }
     }
   }
 }

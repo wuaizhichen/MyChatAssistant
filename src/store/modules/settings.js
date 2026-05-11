@@ -1,9 +1,14 @@
+/**
+ * Vuex 设置状态管理
+ */
+
+// 从本地存储读取设置，没有则使用默认值
 const state = {
-  model: localStorage.getItem('chat-model') || 'gpt-3.5-turbo',
-  temperature: parseFloat(localStorage.getItem('chat-temperature')) || 0.7,
-  maxTokens: parseInt(localStorage.getItem('chat-maxTokens')) || 2048,
-  streamEnabled: localStorage.getItem('chat-stream') !== 'false',
-  theme: localStorage.getItem('chat-theme') || 'light'
+  model: localStorage.getItem('chat-model') || 'gpt-3.5-turbo',  // AI 模型
+  temperature: parseFloat(localStorage.getItem('chat-temperature')) || 0.7,  // 温度参数
+  maxTokens: parseInt(localStorage.getItem('chat-maxTokens')) || 2048,  // 最大 Token 数
+  streamEnabled: localStorage.getItem('chat-stream') !== 'false',  // 是否启用流式输出
+  theme: localStorage.getItem('chat-theme') || 'light'  // 主题
 }
 
 const getters = {
@@ -38,6 +43,7 @@ const mutations = {
 }
 
 const actions = {
+  // 更新设置（可选参数，只更新传入的字段）
   updateSettings({ commit }, settings) {
     if (settings.model !== undefined) commit('SET_MODEL', settings.model)
     if (settings.temperature !== undefined) commit('SET_TEMPERATURE', settings.temperature)

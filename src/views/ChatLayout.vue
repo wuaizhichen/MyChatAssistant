@@ -44,31 +44,14 @@
         @expand="sidebarCollapsed = false"
       />
       <div class="sidebar-footer" v-if="!sidebarCollapsed">
-          <div class="guest-banner" v-if="isGuest">
-            <div class="guest-info">
-              <i class="el-icon-view"></i>
-              <span>游客模式</span>
-            </div>
-            <el-button type="text" size="mini" @click="$router.push('/login')" class="login-link">
-              登录账号
-            </el-button>
-          </div>
-          <el-button
-            type="text"
-            icon="el-icon-setting"
-            @click="$router.push('/settings')"
-            class="footer-btn"
-          >
-            <span>设置</span>
-          </el-button>
-          <el-button
-            type="text"
-            icon="el-icon-switch-button"
-            @click="handleLogout"
-            class="footer-btn"
-          >
-            <span>{{ isGuest ? '退出' : '登出' }}</span>
-          </el-button>
+        <el-button
+          type="text"
+          icon="el-icon-setting"
+          @click="$router.push('/settings')"
+          class="footer-btn"
+        >
+          <span>设置</span>
+        </el-button>
       </div>
     </div>
     <div class="main-content">
@@ -86,11 +69,6 @@ export default {
   data() {
     return {
       sidebarCollapsed: false
-    }
-  },
-  computed: {
-    isGuest() {
-      return this.$store.getters['user/isGuest']
     }
   },
   created() {
@@ -114,17 +92,6 @@ export default {
       }).then(() => {
         this.$store.dispatch('chat/deleteConversation', id)
         this.$message.success('已删除')
-      }).catch(() => {})
-    },
-    handleLogout() {
-      const msg = this.isGuest ? '确定退出游客模式？' : '确定退出登录？'
-      this.$confirm(msg, '提示', {
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
-        type: 'warning'
-      }).then(() => {
-        this.$store.dispatch('user/logout')
-        this.$router.push('/login')
       }).catch(() => {})
     }
   }
@@ -227,36 +194,6 @@ export default {
 
     &:hover {
       color: #fff;
-    }
-  }
-}
-
-.guest-banner {
-  width: 100%;
-  background: rgba(255, 165, 0, 0.15);
-  border: 1px solid rgba(255, 165, 0, 0.3);
-  border-radius: 8px;
-  padding: 8px 12px;
-  margin-bottom: 8px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-
-  .guest-info {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    color: #ffa500;
-    font-size: 13px;
-  }
-
-  .login-link {
-    color: #409eff;
-    font-size: 12px;
-    padding: 0;
-
-    &:hover {
-      color: #66b1ff;
     }
   }
 }

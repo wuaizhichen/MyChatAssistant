@@ -3,7 +3,8 @@
 </template>
 
 <script>
-import { renderMarkdown } from '@/utils'
+import MarkdownIt from 'markdown-it'
+import hljs from 'highlight.js'
 
 export default {
   name: 'MarkdownRenderer',
@@ -11,11 +12,35 @@ export default {
     content: {
       type: String,
       default: ''
+    },
+    isStreaming: {
+      type: Boolean,
+      default: false
     }
   },
   computed: {
     renderedContent() {
-      return renderMarkdown(this.content)
+      const md = new MarkdownIt({
+        html: false,
+        linkify: true,
+        typographer: true,
+        highlight: (str, lang) => {
+          if (lang && hljs.getLanguage(lang)) {
+            try {
+              return '<pre class="hljs"><code>' +
+                hljs.highlight(str, { language: lang, ignoreIllegals: true }).value +
+                '</code></pre>'
+            } catch (__) {}
+          }
+          return '<pre class="hljs"><code>' + md.utils.escapeHtml(str) + '</code></pre>'
+        }
+      })
+
+      let result = md.render(this.content || '')
+      if (this.isStreaming) {
+        result = result.replace(/<\/code><\/pre>$/, '<span class="streaming-cursor">▋</span></code></pre>')
+      }
+      return result
     }
   }
 }
@@ -23,28 +48,36 @@ export default {
 
 <style lang="scss">
 .markdown-renderer {
-  font-size: 15px;
   line-height: 1.7;
-  color: #333;
   word-break: break-word;
 
-  p {
-    margin: 0 0 12px;
+  code {
+    background: #f5f5f5;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 0.9em;
+  }
 
-    &:last-child {
-      margin-bottom: 0;
+  pre {
+    background: #1e1e1e;
+    border-radius: 8px;
+    padding: 16px;
+    overflow-x: auto;
+    margin: 12px 0;
+
+    code {
+      background: transparent;
+      padding: 0;
+      color: #d4d4d4;
+      font-size: 14px;
+      line-height: 1.5;
     }
   }
 
-  h1, h2, h3, h4, h5, h6 {
-    margin: 20px 0 10px;
-    font-weight: 600;
-    line-height: 1.4;
+  p {
+    margin: 8px 0;
   }
-
-  h1 { font-size: 1.6em; }
-  h2 { font-size: 1.4em; }
-  h3 { font-size: 1.2em; }
 
   ul, ol {
     padding-left: 24px;
@@ -56,10 +89,9 @@ export default {
   }
 
   blockquote {
-    margin: 12px 0;
-    padding: 8px 16px;
     border-left: 4px solid #ddd;
-    background: #f9f9f9;
+    padding-left: 16px;
+    margin: 12px 0;
     color: #666;
   }
 
@@ -85,76 +117,19 @@ export default {
 
     th {
       background: #f5f5f5;
-      font-weight: 600;
-    }
-
-    tr:nth-child(even) {
-      background: #fafafa;
     }
   }
 
-  code {
-    background: #f0f0f0;
-    padding: 2px 6px;
-    border-radius: 4px;
-    font-size: 0.9em;
-    font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
+  .streaming-cursor {
+    display: inline-block;
+    animation: blink 1s infinite;
+    color: #409eff;
+    font-weight: bold;
   }
 
-  .hljs-code-block {
-    margin: 12px 0;
-    border-radius: 8px;
-    overflow: hidden;
-    background: #1e1e1e;
-
-    .code-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 6px 12px;
-      background: #2d2d2d;
-
-      .code-lang {
-        color: #999;
-        font-size: 12px;
-      }
-
-      .copy-btn {
-        background: none;
-        border: 1px solid #555;
-        color: #ccc;
-        padding: 2px 8px;
-        border-radius: 4px;
-        font-size: 12px;
-        cursor: pointer;
-
-        &:hover {
-          background: #3d3d3d;
-          color: #fff;
-        }
-      }
-    }
-
-    code {
-      display: block;
-      padding: 16px;
-      overflow-x: auto;
-      background: transparent;
-      color: #d4d4d4;
-      font-size: 14px;
-      line-height: 1.5;
-    }
-  }
-
-  hr {
-    border: none;
-    border-top: 1px solid #e8e8e8;
-    margin: 16px 0;
-  }
-
-  img {
-    max-width: 100%;
-    border-radius: 8px;
+  @keyframes blink {
+    0%, 50% { opacity: 1; }
+    51%, 100% { opacity: 0; }
   }
 }
 </style>

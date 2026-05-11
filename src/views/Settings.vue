@@ -53,21 +53,6 @@
 
       <el-card class="settings-card">
         <div slot="header" class="card-header">
-          <i class="el-icon-user"></i>
-          <span>账户信息</span>
-        </div>
-        <el-form label-width="100px" label-position="left">
-          <el-form-item label="用户名">
-            <el-input :value="userInfo ? userInfo.username : '-'" disabled />
-          </el-form-item>
-          <el-form-item label="邮箱">
-            <el-input :value="userInfo ? userInfo.email : '-'" disabled />
-          </el-form-item>
-        </el-form>
-      </el-card>
-
-      <el-card class="settings-card">
-        <div slot="header" class="card-header">
           <i class="el-icon-monitor"></i>
           <span>界面设置</span>
         </div>
@@ -79,6 +64,17 @@
             </el-radio-group>
           </el-form-item>
         </el-form>
+      </el-card>
+
+      <el-card class="settings-card">
+        <div slot="header" class="card-header">
+          <i class="el-icon-info"></i>
+          <span>关于</span>
+        </div>
+        <div class="about-info">
+          <p>智能聊天平台 v1.0.0</p>
+          <p class="tip">当前为本地演示模式，配置后端 API 后可使用真实 AI 对话</p>
+        </div>
       </el-card>
     </div>
   </div>
@@ -97,14 +93,6 @@ export default {
         theme: this.$store.getters['settings/theme']
       }
     }
-  },
-  computed: {
-    userInfo() {
-      return this.$store.getters['user/userInfo']
-    }
-  },
-  created() {
-    this.$store.dispatch('user/getUserInfo').catch(() => {})
   },
   methods: {
     handleSettingChange() {
@@ -165,5 +153,17 @@ export default {
   font-size: 12px;
   color: #999;
   margin-top: 4px;
+}
+
+.about-info {
+  p {
+    margin: 0 0 8px;
+    color: #666;
+  }
+
+  .tip {
+    font-size: 13px;
+    color: #999;
+  }
 }
 </style>

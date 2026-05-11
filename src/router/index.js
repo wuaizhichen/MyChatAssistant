@@ -1,16 +1,14 @@
+/**
+ * 路由配置
+ */
 import Vue from 'vue'
 import VueRouter from 'vue-router'
 import ChatLayout from '@/views/ChatLayout.vue'
 
 Vue.use(VueRouter)
 
+// 路由配置
 const routes = [
-  {
-    path: '/login',
-    name: 'Login',
-    component: () => import('@/views/Login.vue'),
-    meta: { title: '登录' }
-  },
   {
     path: '/',
     component: ChatLayout,
@@ -39,21 +37,15 @@ const routes = [
 ]
 
 const router = new VueRouter({
-  mode: 'hash',
+  mode: 'hash',  // 使用 hash 模式，URL 带 # 号
   routes
 })
 
+// 全局前置守卫
 router.beforeEach((to, from, next) => {
+  // 更新页面标题
   document.title = to.meta.title ? `${to.meta.title} - 智能聊天平台` : '智能聊天平台'
-  const token = localStorage.getItem('token')
-  const isGuest = localStorage.getItem('isGuest') === 'true'
-  if (to.path !== '/login' && !token && !isGuest) {
-    next('/login')
-  } else if (to.path === '/login' && (token || isGuest)) {
-    next('/')
-  } else {
-    next()
-  }
+  next()
 })
 
 export default router

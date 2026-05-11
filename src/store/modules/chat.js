@@ -1,78 +1,64 @@
+/**
+ * Vuex 聊天状态管理
+ * 数据从后端 API 获取
+ */
 import Vue from 'vue'
-import { createConversation, getConversations, getMessages } from '@/api/chat'
 import { generateId } from '@/utils'
-
-const GUEST_CONVERSATIONS_KEY = 'guest_conversations'
-const GUEST_MESSAGES_KEY = 'guest_messages'
-
-function getGuestConversations() {
-  try {
-    return JSON.parse(localStorage.getItem(GUEST_CONVERSATIONS_KEY)) || []
-  } catch {
-    return []
-  }
-}
-
-function saveGuestConversations(conversations) {
-  localStorage.setItem(GUEST_CONVERSATIONS_KEY, JSON.stringify(conversations))
-}
-
-function getGuestMessages() {
-  try {
-    return JSON.parse(localStorage.getItem(GUEST_MESSAGES_KEY)) || {}
-  } catch {
-    return {}
-  }
-}
-
-function saveGuestMessages(messages) {
-  localStorage.setItem(GUEST_MESSAGES_KEY, JSON.stringify(messages))
-}
+import { getSessionList, createSession, deleteSession, getMessages } from '@/api/chat'
 
 const state = {
-  conversations: [],
-  currentConversationId: null,
-  messages: {},
-  loading: false,
-  sendingMessage: false
+  sessions: [],            // 会话列表
+  currentSessionId: null,  // 当前会话 ID
+  messages: {},           // 消息字典 { sessionId: [messages] }
+  loading: false,         // 加载状态
+  sendingMessage: false   // 发送中状态
 }
 
 const getters = {
+  // 当前会话
   currentConversation: state => {
-    return state.conversations.find(c => c.id === state.currentConversationId) || null
+    return state.sessions.find(s => s.id === state.currentSessionId) || null
   },
+  // 当前会话的消息
   currentMessages: state => {
-    return state.messages[state.currentConversationId] || []
+    return state.messages[state.currentSessionId] || []
   },
+  // 按更新时间倒序的会话列表
   sortedConversations: state => {
-    return [...state.conversations].sort((a, b) => {
+    return [...state.sessions].sort((a, b) => {
       return new Date(b.updatedAt) - new Date(a.updatedAt)
     })
   }
 }
 
 const mutations = {
-  SET_CONVERSATIONS(state, conversations) {
-    state.conversations = conversations
+  SET_SESSIONS(state, sessions) {
+    state.sessions = sessions
   },
-  SET_CURRENT_CONVERSATION(state, id) {
-    state.currentConversationId = id
+  SET_CURRENT_SESSION(state, id) {
+    state.currentSessionId = id
   },
-  SET_MESSAGES(state, { conversationId, messages }) {
-    Vue.set(state.messages, conversationId, messages)
+  SET_MESSAGES(state, { sessionId, messages }) {
+    Vue.set(state.messages, sessionId, messages)
   },
-  ADD_MESSAGE(state, { conversationId, message }) {
-    if (!state.messages[conversationId]) {
-      Vue.set(state.messages, conversationId, [])
+  ADD_MESSAGE(state, { sessionId, message }) {
+    if (!state.messages[sessionId]) {
+      Vue.set(state.messages, sessionId, [])
     }
-    state.messages[conversationId].push(message)
+    state.messages[sessionId].push(message)
   },
-  UPDATE_LAST_MESSAGE(state, { conversationId, content }) {
-    const msgs = state.messages[conversationId]
+  UPDATE_LAST_MESSAGE(state, { sessionId, content }) {
+    const msgs = state.messages[sessionId]
     if (msgs && msgs.length > 0) {
       const lastMsg = msgs[msgs.length - 1]
       if (lastMsg.role === 'assistant') {
-        lastMsg.content += content
+        const updatedMsgs = [...msgs]
+        // 直接替换内容，不追加
+        updatedMsgs[updatedMsgs.length - 1] = {
+          ...lastMsg,
+          content: content
+        }
+        Vue.set(state.messages, sessionId, updatedMsgs)
       }
     }
   },
@@ -82,134 +68,99 @@ const mutations = {
   SET_SENDING(state, sending) {
     state.sendingMessage = sending
   },
-  ADD_CONVERSATION(state, conversation) {
-    state.conversations.unshift(conversation)
+  ADD_SESSION(state, session) {
+    state.sessions.unshift(session)
   },
-  REMOVE_CONVERSATION(state, id) {
-    state.conversations = state.conversations.filter(c => c.id !== id)
-    if (state.currentConversationId === id) {
-      state.currentConversationId = null
+  REMOVE_SESSION(state, id) {
+    state.sessions = state.sessions.filter(s => s.id !== id)
+    if (state.currentSessionId === id) {
+      state.currentSessionId = null
     }
     Vue.delete(state.messages, id)
   },
-  UPDATE_CONVERSATION_TITLE(state, { id, title }) {
-    const conv = state.conversations.find(c => c.id === id)
-    if (conv) {
-      conv.title = title
+  UPDATE_SESSION_TITLE(state, { id, title }) {
+    const session = state.sessions.find(s => s.id === id)
+    if (session) {
+      session.title = title
     }
   }
 }
 
 const actions = {
-  async fetchConversations({ commit, rootState }) {
-    const isGuest = rootState.user.isGuest
+  // 加载所有会话
+  async fetchConversations({ commit }) {
     commit('SET_LOADING', true)
     try {
-      if (isGuest) {
-        commit('SET_CONVERSATIONS', getGuestConversations())
-        commit('SET_MESSAGES', { conversationId: '__load__', messages: [] })
-        const guestMsgs = getGuestMessages()
-        Object.keys(guestMsgs).forEach(id => {
-          commit('SET_MESSAGES', { conversationId: id, messages: guestMsgs[id] })
-        })
-      } else {
-        const res = await getConversations()
-        commit('SET_CONVERSATIONS', res.data || [])
-      }
+      const res = await getSessionList()
+      commit('SET_SESSIONS', res.data || [])
+    } catch (err) {
+      console.error('获取会话列表失败:', err)
     } finally {
       commit('SET_LOADING', false)
     }
   },
-  async fetchMessages({ commit, rootState }, conversationId) {
-    const isGuest = rootState.user.isGuest
-    if (isGuest) {
-      const guestMsgs = getGuestMessages()
+  // 加载单个会话的消息
+  async fetchMessages({ commit }, sessionId) {
+    try {
+      const res = await getMessages(sessionId)
+      // 转换 role: 1 -> 'user', role: 2 -> 'assistant'
+      const messages = (res.data || []).map(msg => ({
+        ...msg,
+        role: msg.role === 1 ? 'user' : 'assistant'
+      }))
       commit('SET_MESSAGES', {
-        conversationId,
-        messages: guestMsgs[conversationId] || []
+        sessionId,
+        messages
       })
-    } else if (conversationId) {
-      const res = await getMessages(conversationId)
-      commit('SET_MESSAGES', {
-        conversationId,
-        messages: res.data || []
-      })
+    } catch (err) {
+      console.error('获取消息失败:', err)
     }
   },
-  async createConversation({ commit, rootState }, title = '新对话') {
-    const isGuest = rootState.user.isGuest
-    if (isGuest) {
-      const conversation = {
-        id: generateId(),
-        title,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      }
-      commit('ADD_CONVERSATION', conversation)
-      commit('SET_CURRENT_CONVERSATION', conversation.id)
-      commit('SET_MESSAGES', { conversationId: conversation.id, messages: [] })
-      saveGuestConversations(rootState.chat.conversations)
-      return conversation
+  // 创建新会话
+  async createConversation({ commit }, title = '新对话') {
+    try {
+      const res = await createSession({ title })
+      const session = res.data
+      commit('ADD_SESSION', session)
+      commit('SET_CURRENT_SESSION', session.id)
+      commit('SET_MESSAGES', { sessionId: session.id, messages: [] })
+      return session
+    } catch (err) {
+      console.error('创建会话失败:', err)
+      throw err
     }
-    const res = await createConversation({ title })
-    const conversation = res.data
-    commit('ADD_CONVERSATION', conversation)
-    commit('SET_CURRENT_CONVERSATION', conversation.id)
-    commit('SET_MESSAGES', { conversationId: conversation.id, messages: [] })
-    return conversation
   },
+  // 选择会话
   selectConversation({ commit }, id) {
-    commit('SET_CURRENT_CONVERSATION', id)
+    commit('SET_CURRENT_SESSION', id)
   },
-  deleteConversation({ commit, rootState }, id) {
-    commit('REMOVE_CONVERSATION', id)
-    if (rootState.user.isGuest) {
-      saveGuestConversations(rootState.chat.conversations)
-      const guestMsgs = getGuestMessages()
-      delete guestMsgs[id]
-      saveGuestMessages(guestMsgs)
+  // 删除会话
+  async deleteConversation({ commit }, id) {
+    try {
+      await deleteSession(id)
+      commit('REMOVE_SESSION', id)
+    } catch (err) {
+      console.error('删除会话失败:', err)
     }
   },
-  addMessage({ commit, rootState }, { conversationId, message }) {
-    commit('ADD_MESSAGE', { conversationId, message })
-    if (rootState.user.isGuest) {
-      const guestMsgs = getGuestMessages()
-      if (!guestMsgs[conversationId]) {
-        guestMsgs[conversationId] = []
-      }
-      guestMsgs[conversationId].push(message)
-      saveGuestMessages(guestMsgs)
-    }
+  // 添加消息
+  addMessage({ commit }, { sessionId, message }) {
+    commit('ADD_MESSAGE', { sessionId, message })
   },
-  updateAssistantMessage({ commit, rootState }, { conversationId, content }) {
-    commit('UPDATE_LAST_MESSAGE', { conversationId, content })
-    if (rootState.user.isGuest) {
-      const guestMsgs = getGuestMessages()
-      if (guestMsgs[conversationId] && guestMsgs[conversationId].length > 0) {
-        const lastMsg = guestMsgs[conversationId][guestMsgs[conversationId].length - 1]
-        if (lastMsg.role === 'assistant') {
-          lastMsg.content += content
-          saveGuestMessages(guestMsgs)
-        }
-      }
-    }
+  // 流式更新 AI 回复
+  updateAssistantMessage({ commit }, { sessionId, content }) {
+    commit('UPDATE_LAST_MESSAGE', { sessionId, content })
   },
   setSending({ commit }, sending) {
     commit('SET_SENDING', sending)
   },
-  updateConversationTitle({ commit, rootState }, { id, title }) {
-    commit('UPDATE_CONVERSATION_TITLE', { id, title })
-    if (rootState.user.isGuest) {
-      saveGuestConversations(rootState.chat.conversations)
-    }
+  // 更新会话标题
+  async updateConversationTitle({ commit, state }, { id, title }) {
+    commit('UPDATE_SESSION_TITLE', { id, title })
   },
-  clearMessages({ commit, rootState }, conversationId) {
-    commit('SET_MESSAGES', { conversationId, messages: [] })
-    if (rootState.user.isGuest) {
-      const guestMsgs = getGuestMessages()
-      guestMsgs[conversationId] = []
-      saveGuestMessages(guestMsgs)
-    }
+  // 清空会话消息
+  clearMessages({ commit }, sessionId) {
+    commit('SET_MESSAGES', { sessionId, messages: [] })
   }
 }
 

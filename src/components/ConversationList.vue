@@ -57,7 +57,7 @@ export default {
       return this.$store.getters['chat/sortedConversations']
     },
     currentId() {
-      return this.$store.state.chat.currentConversationId
+      return this.$store.state.chat.currentSessionId
     },
     filteredConversations() {
       if (!this.searchText) return this.conversations
